@@ -260,9 +260,8 @@ std::optional<std::pair<Object, std::string_view>> ParseObject(
     if (!value_opt) return true;
     s = value_opt->second;
 
-    out.insert_or_assign(
-        std::move(key_opt->first),
-        std::make_unique<ValueWrapper>(std::move(value_opt->first)));
+    out.insert_or_assign(std::move(key_opt->first),
+                         std::make_unique<Value>(std::move(value_opt->first)));
     return false;
   };
 
@@ -309,7 +308,7 @@ std::optional<std::pair<Array, std::string_view>> ParseArray(
     return {{std::move(out), s}};
   }
   if (auto opt = ParseValue(s)) {
-    out.push_back(std::make_unique<ValueWrapper>(std::move(opt->first)));
+    out.push_back(std::make_unique<Value>(std::move(opt->first)));
     s = opt->second;
   } else {
     return std::nullopt;
@@ -328,7 +327,7 @@ std::optional<std::pair<Array, std::string_view>> ParseArray(
     s = SkipWS(s);
 
     if (auto opt = ParseValue(s)) {
-      out.push_back(std::make_unique<ValueWrapper>(std::move(opt->first)));
+      out.push_back(std::make_unique<Value>(std::move(opt->first)));
       s = opt->second;
     } else {
       return std::nullopt;

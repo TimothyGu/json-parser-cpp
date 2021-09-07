@@ -8,16 +8,14 @@ interesting bits of the API:
 ```c++
 namespace json {
 
-using Object = std::unordered_map<std::string, std::unique_ptr<ValueWrapper>>;
-using Array = std::vector<std::unique_ptr<ValueWrapper>>;
+using Object = std::unordered_map<std::string, std::unique_ptr<Value>>;
+using Array = std::vector<std::unique_ptr<Value>>;
 
-using Value =
-    std::variant<std::nullptr_t, bool, double, std::string, Object, Array>;
+class Value : public std::variant<std::nullptr_t, bool, double, std::string,
+                                  Object, Array> { /* ... */ };
 
-struct ValueWrapper { Value v; };
-
-std::optional<Value> Parse(std::string_view s);
-Value Clone(const Value& v);
+std::optional<Value> Parse(std::string_view);
+Value Clone(const Value&);
 
 }  // namespace json
 ```

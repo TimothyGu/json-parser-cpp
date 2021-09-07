@@ -13,32 +13,30 @@
 
 namespace json {
 
-struct ValueWrapper;
+class Value;
 
-using Object = std::unordered_map<std::string, std::unique_ptr<ValueWrapper>>;
-using Array = std::vector<std::unique_ptr<ValueWrapper>>;
+using Object = std::unordered_map<std::string, std::unique_ptr<Value>>;
+using Array = std::vector<std::unique_ptr<Value>>;
 
 // Value is move-only.
-using Value =
-    std::variant<std::nullptr_t, bool, double, std::string, Object, Array>;
+class Value : public std::variant<std::nullptr_t, bool, double, std::string,
+                                  Object, Array> {
+ public:
+  using Base =
+      std::variant<std::nullptr_t, bool, double, std::string, Object, Array>;
 
-// A wrapper for Value to allow recursive types.
-// Just like Value, ValueWrapper is move-only.
-struct ValueWrapper {
-  Value v;
-
-  ValueWrapper() = default;
-  ValueWrapper(ValueWrapper&&) = default;
-  ValueWrapper(Value&& w) : v(std::move(w)) {}
-
-  constexpr Value& get() noexcept { return v; }
-  constexpr operator Value&() noexcept { return v; }
-  constexpr const Value& get() const noexcept { return v; }
+  using variant::variant;
 };
 
 std::optional<Value> Parse(std::string_view);
 Value Clone(const Value&);
 void Print(const Value&);
+
+// Same as std::visit(visitor, val) in C++23.
+// See http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2021/p2162r2.html
+constexpr auto Visit(auto visitor, const Value& val) {
+  return std::visit(visitor, static_cast<const Value::Base&>(val));
+}
 
 }  // namespace json
 

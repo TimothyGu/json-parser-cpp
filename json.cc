@@ -14,7 +14,8 @@
 namespace json {
 
 namespace {
-// Overloaded helper from https://en.cppreference.com/w/cpp/utility/variant/visit#Example
+// Overloaded helper from
+// https://en.cppreference.com/w/cpp/utility/variant/visit#Example
 template <class... Ts>
 struct Overloaded : Ts... {
   using Ts::operator()...;
@@ -34,31 +35,30 @@ std::optional<Value> Parse(std::string_view s) {
 }
 
 Value Clone(const Value& v) {
-  return std::visit(
-      Overloaded{
-          [](std::nullptr_t) { return Value(nullptr); },
-          [](bool bv) { return Value(bv); },
-          [](double nv) { return Value(nv); },
-          [](const std::string& sv) { return Value(sv); },
-          [](const Object& ov) {
-            Object out;
-            out.reserve(ov.size());
-            for (const auto& [key, value] : ov) {
-              out.insert_or_assign(
-                  key, std::make_unique<ValueWrapper>(Clone(*value)));
-            }
-            return Value(std::move(out));
-          },
-          [](const Array& av) {
-            Array out;
-            out.reserve(av.size());
-            for (const auto& el : av) {
-              out.push_back(std::make_unique<ValueWrapper>(Clone(*el)));
-            }
-            return Value(std::move(out));
-          },
-      },
-      v);
+  return Visit(Overloaded{
+                   [](std::nullptr_t) { return Value(nullptr); },
+                   [](bool bv) { return Value(bv); },
+                   [](double nv) { return Value(nv); },
+                   [](const std::string& sv) { return Value(sv); },
+                   [](const Object& ov) {
+                     Object out;
+                     out.reserve(ov.size());
+                     for (const auto& [key, value] : ov) {
+                       out.insert_or_assign(
+                           key, std::make_unique<Value>(Clone(*value)));
+                     }
+                     return Value(std::move(out));
+                   },
+                   [](const Array& av) {
+                     Array out;
+                     out.reserve(av.size());
+                     for (const auto& el : av) {
+                       out.push_back(std::make_unique<Value>(Clone(*el)));
+                     }
+                     return Value(std::move(out));
+                   },
+               },
+               v);
 }
 
 namespace {
@@ -115,39 +115,39 @@ std::ostream& operator<<(std::ostream& os, JSONString str) {
 }
 
 std::ostream& operator<<(std::ostream& os, const Value& v) {
-  std::visit(Overloaded{
-                 [&os](std::nullptr_t) { os << "null"; },
-                 [&os](bool bv) { os << (bv ? "true" : "false"); },
-                 [&os](double nv) { os << nv; },
-                 [&os](const std::string& sv) { os << JSONString(sv); },
-                 [&os](const Object& ov) {
-                   os << '{';
-                   auto it = ov.begin();
-                   if (it != ov.end()) {
-                     os << JSONString(it->first) << ':' << it->second->get();
-                     ++it;
-                   }
-                   for (; it != ov.end(); ++it) {
-                     os << ',';
-                     os << JSONString(it->first) << ':' << it->second->get();
-                   }
-                   os << '}';
-                 },
-                 [&os](const Array& av) {
-                   os << '[';
-                   auto it = av.begin();
-                   if (it != av.end()) {
-                     os << (*it)->get();
-                     ++it;
-                   }
-                   for (; it != av.end(); ++it) {
-                     os << ',';
-                     os << (*it)->get();
-                   }
-                   os << ']';
-                 },
-             },
-             v);
+  Visit(Overloaded{
+            [&os](std::nullptr_t) { os << "null"; },
+            [&os](bool bv) { os << (bv ? "true" : "false"); },
+            [&os](double nv) { os << nv; },
+            [&os](const std::string& sv) { os << JSONString(sv); },
+            [&os](const Object& ov) {
+              os << '{';
+              auto it = ov.begin();
+              if (it != ov.end()) {
+                os << JSONString(it->first) << ':' << *it->second;
+                ++it;
+              }
+              for (; it != ov.end(); ++it) {
+                os << ',';
+                os << JSONString(it->first) << ':' << *it->second;
+              }
+              os << '}';
+            },
+            [&os](const Array& av) {
+              os << '[';
+              auto it = av.begin();
+              if (it != av.end()) {
+                os << **it;
+                ++it;
+              }
+              for (; it != av.end(); ++it) {
+                os << ',';
+                os << **it;
+              }
+              os << ']';
+            },
+        },
+        v);
   return os;
 }
 
