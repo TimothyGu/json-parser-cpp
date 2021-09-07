@@ -63,96 +63,96 @@ Value Clone(const Value& v) {
 
 namespace {
 
-struct Hex4 {
-  char16_t n;
-};
-
 constexpr char ToHexDigit(char n) {
   if (0 <= n && n <= 9) return n - 0x0 + '0';
   if (0xa <= n && n <= 0xf) return n - 0xa + 'a';
   assert(false);
 }
 
-std::ostream& operator<<(std::ostream& os, Hex4 cu) {
-  return os << ToHexDigit(cu.n / 0x1000) << ToHexDigit(cu.n / 0x100 % 0x10)
-            << ToHexDigit(cu.n / 0x10 % 0x10) << ToHexDigit(cu.n % 0x10);
-}
-
-struct JSONString {
-  std::string_view sv;
-
-  template <typename... T>
-  JSONString(T&&... t) : sv(std::forward<T>(t)...) {}
-};
-
-std::ostream& operator<<(std::ostream& os, JSONString str) {
-  os << '"';
-  char buf[U8_MAX_LENGTH];
-  while (!str.sv.empty()) {
-    char32_t cp;
-    std::tie(cp, str.sv) = internal::utf8::Decode(str.sv);
-    if (cp == '\b')
-      os << "\\b";
-    else if (cp == '\t')
-      os << "\\t";
-    else if (cp == '\n')
-      os << "\\n";
-    else if (cp == '\f')
-      os << "\\f";
-    else if (cp == '\r')
-      os << "\\r";
-    else if (cp == '"')
-      os << "\\\"";
-    else if (cp == '\\')
-      os << "\\\\";
-    else if (cp < 0x20)
-      os << "\\u" << Hex4{static_cast<char16_t>(cp)};
-    else
-      os << internal::utf8::Encode(cp, buf);
-  }
-  os << '"';
-  return os;
-}
-
-std::ostream& operator<<(std::ostream& os, const Value& v) {
-  Visit(Overloaded{
-            [&os](std::nullptr_t) { os << "null"; },
-            [&os](bool bv) { os << (bv ? "true" : "false"); },
-            [&os](double nv) { os << nv; },
-            [&os](const std::string& sv) { os << JSONString(sv); },
-            [&os](const Object& ov) {
-              os << '{';
-              auto it = ov.begin();
-              if (it != ov.end()) {
-                os << JSONString(it->first) << ':' << *it->second;
-                ++it;
-              }
-              for (; it != ov.end(); ++it) {
-                os << ',';
-                os << JSONString(it->first) << ':' << *it->second;
-              }
-              os << '}';
-            },
-            [&os](const Array& av) {
-              os << '[';
-              auto it = av.begin();
-              if (it != av.end()) {
-                os << **it;
-                ++it;
-              }
-              for (; it != av.end(); ++it) {
-                os << ',';
-                os << **it;
-              }
-              os << ']';
-            },
-        },
-        v);
-  return os;
+void AppendHex4(std::string* s, char16_t n) {
+  s->push_back(ToHexDigit(n / 0x1000));
+  s->push_back(ToHexDigit(n / 0x100 % 0x10));
+  s->push_back(ToHexDigit(n / 0x10 % 0x10));
+  s->push_back(ToHexDigit(n % 0x10));
 }
 
 }  // namespace
 
-void Print(const Value& v) { std::cout << v << '\n'; }
+void Append(std::string* s, double n) {
+  // FIXME: Maybe use absl::StrAppend or something similar.
+  *s += std::to_string(n);
+}
+
+void Append(std::string* s, const std::string& t) {
+  s->push_back('"');
+  char buf[U8_MAX_LENGTH];
+  std::string_view tv = t;
+  while (!tv.empty()) {
+    char32_t cp;
+    std::tie(cp, tv) = internal::utf8::Decode(tv);
+    if (cp == '\b')
+      s->append("\\b");
+    else if (cp == '\t')
+      s->append("\\t");
+    else if (cp == '\n')
+      s->append("\\n");
+    else if (cp == '\f')
+      s->append("\\f");
+    else if (cp == '\r')
+      s->append("\\r");
+    else if (cp == '"')
+      s->append("\\\"");
+    else if (cp == '\\')
+      s->append("\\\\");
+    else if (cp < 0x20) {
+      s->append("\\u");
+      AppendHex4(s, static_cast<char16_t>(cp));
+    } else
+      s->append(internal::utf8::Encode(cp, buf));
+  }
+  s->push_back('"');
+}
+
+void Append(std::string* s, const Object& ov) {
+  s->push_back('{');
+  auto it = ov.begin();
+  if (it != ov.end()) {
+    Append(s, it->first);
+    s->push_back(':');
+    Append(s, *it->second);
+    ++it;
+  }
+  for (; it != ov.end(); ++it) {
+    s->push_back(',');
+    Append(s, it->first);
+    s->push_back(':');
+    Append(s, *it->second);
+  }
+  s->push_back('}');
+}
+
+void Append(std::string* s, const Array& av) {
+  s->push_back('[');
+  auto it = av.begin();
+  if (it != av.end()) {
+    Append(s, **it);
+    ++it;
+  }
+  for (; it != av.end(); ++it) {
+    s->push_back(',');
+    Append(s, **it);
+  }
+  s->push_back(']');
+}
+
+void Append(std::string* s, const Value& v) {
+  Visit([s](const auto& inner) { Append(s, inner); }, v);
+}
+
+void Print(const Value& v) {
+  std::string s;
+  Append(&s, v);
+  std::cout << s << '\n';
+}
 
 }  // namespace json
